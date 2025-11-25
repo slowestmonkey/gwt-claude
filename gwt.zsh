@@ -20,59 +20,69 @@ _gwt_help() {
 gwt-claude - Git worktree manager for parallel Claude Code sessions
 
 Commands:
-  gwt-create <name> [-l | -b <branch>]   Create worktree + open Claude Code
+  gwt-create [-l | -b <branch>] <name>   Create worktree + open Claude Code
     -l, --local    Create from current branch (default: main)
     -b <branch>    Create from specific branch
 
   gwt-list                               List all worktrees
 
-  gwt-switch <name>                      Switch to worktree
+  gwt-switch <branch>                    Switch to worktree by branch name
 
-  gwt-remove [-f] <name>                 Remove worktree
-    -f, --force    Skip confirmation prompt
+  gwt-remove [-f] <branch>               Remove worktree by branch name
+    -f, --force    Skip confirmation + remove dirty worktrees
 
 Worktrees are stored in: ~/.claude-worktrees/{repo}/{name}
 EOF
 }
 
-# Helper: Find worktree path by name
-# Usage: _gwt_find_path <name>
+# Helper: Find worktree path by branch name
+# Usage: _gwt_find_path <branch>
 # Returns: path via stdout, or empty + error message if not found
 _gwt_find_path() {
-  local search_name="$1"
-  local sanitized_name="${search_name//\//-}"
+  local search_branch="$1"
+  local wt_path="" found_paths=()
 
-  # Try exact match first
-  local wt_path=$(git worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | grep -E "(^|/)${sanitized_name}$")
-
-  # Fallback to partial match
-  if [[ -z "$wt_path" ]]; then
-    wt_path=$(git worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | grep "${sanitized_name}")
-  fi
+  # Parse porcelain output: worktree, HEAD, branch lines
+  local current_path="" current_branch=""
+  while IFS= read -r line; do
+    if [[ "$line" == worktree* ]]; then
+      current_path="${line#worktree }"
+    elif [[ "$line" == branch* ]]; then
+      current_branch="${line#branch refs/heads/}"
+      # Check for exact match
+      if [[ "$current_branch" == "$search_branch" ]]; then
+        found_paths+=("$current_path")
+      # Check for partial match (e.g., "feature" matches "feat/feature-xyz")
+      elif [[ "$current_branch" == *"$search_branch"* ]]; then
+        found_paths+=("$current_path")
+      fi
+    fi
+  done < <(git worktree list --porcelain)
 
   # Not found
-  if [[ -z "$wt_path" ]]; then
-    echo "Error: No worktree found matching '$search_name'" >&2
+  if [[ ${#found_paths[@]} -eq 0 ]]; then
+    echo "Error: No worktree found with branch matching '$search_branch'" >&2
     echo "" >&2
     echo "Available worktrees:" >&2
-    git worktree list >&2
+    gwt-list >&2
     return 1
   fi
 
   # Multiple matches
-  local match_count=$(echo "$wt_path" | wc -l | tr -d ' ')
-  if [[ "$match_count" -gt 1 ]]; then
-    echo "Error: Multiple worktrees match '$search_name':" >&2
-    echo "$wt_path" >&2
+  if [[ ${#found_paths[@]} -gt 1 ]]; then
+    echo "Error: Multiple worktrees match '$search_branch':" >&2
+    for p in "${found_paths[@]}"; do
+      echo "  $p" >&2
+    done
     echo "" >&2
     echo "Please be more specific." >&2
     return 1
   fi
 
-  echo "$wt_path"
+  echo "${found_paths[0]}"
 }
 
-# Usage: gwt-create <name> [-l | -b <branch>]
+# Usage: gwt-create [-l | -b <branch>] <name>
 # Default: creates from default branch. Use -l for current branch, -b for specific branch.
 gwt-create() {
   _gwt_require_repo || return 1
@@ -88,7 +98,7 @@ gwt-create() {
   done
 
   if [[ -z "$wt_name" ]]; then
-    echo "Usage: gwt-create <name> [-l | -b <branch>]" >&2
+    echo "Usage: gwt-create [-l | -b <branch>] <name>" >&2
     echo "       -l    Create from current branch (default: $(_gwt_default_branch))" >&2
     echo "       -b    Create from specific branch" >&2
     return 1
@@ -174,29 +184,29 @@ gwt-list() {
   done
 }
 
-# Usage: gwt-remove [-f] <name>
+# Usage: gwt-remove [-f] <branch>
 gwt-remove() {
   _gwt_require_repo || return 1
 
-  local force=false search_name=""
+  local force=false search_branch=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help) _gwt_help; return 0 ;;
       -f|--force) force=true; shift ;;
-      *)          search_name="$1"; shift ;;
+      *)          search_branch="$1"; shift ;;
     esac
   done
 
-  if [[ -z "$search_name" ]]; then
-    echo "Usage: gwt-remove [-f] <name>" >&2
-    echo "       -f    Force remove without confirmation" >&2
+  if [[ -z "$search_branch" ]]; then
+    echo "Usage: gwt-remove [-f] <branch>" >&2
+    echo "       -f    Force remove (skip confirmation + dirty worktrees)" >&2
     echo "" >&2
     echo "Available worktrees:" >&2
-    git worktree list
+    gwt-list
     return 1
   fi
 
-  local worktree_path=$(_gwt_find_path "$search_name") || return 1
+  local worktree_path=$(_gwt_find_path "$search_branch") || return 1
 
   # Prevent removing main repository
   local main_repo=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
@@ -235,27 +245,27 @@ gwt-remove() {
   fi
 }
 
-# Usage: gwt-switch <name>
+# Usage: gwt-switch <branch>
 gwt-switch() {
   _gwt_require_repo || return 1
 
-  local search_name=""
+  local search_branch=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help) _gwt_help; return 0 ;;
-      *)         search_name="$1"; shift ;;
+      *)         search_branch="$1"; shift ;;
     esac
   done
 
-  if [[ -z "$search_name" ]]; then
-    echo "Usage: gwt-switch <name>" >&2
+  if [[ -z "$search_branch" ]]; then
+    echo "Usage: gwt-switch <branch>" >&2
     echo "" >&2
     echo "Available worktrees:" >&2
-    git worktree list
+    gwt-list
     return 1
   fi
 
-  local worktree_path=$(_gwt_find_path "$search_name") || return 1
+  local worktree_path=$(_gwt_find_path "$search_branch") || return 1
 
   cd "$worktree_path"
   echo "Switched to: $worktree_path"

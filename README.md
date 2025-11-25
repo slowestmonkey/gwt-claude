@@ -47,12 +47,12 @@ source ~/.zshrc
 
 ```bash
 gwt-create <name>           # Create from main + open Claude Code
-gwt-create <name> -l        # Create from current branch (-l = local)
-gwt-create <name> -b dev    # Create from specific branch
+gwt-create -l <name>        # Create from current branch (-l = local)
+gwt-create -b dev <name>    # Create from specific branch
 gwt-list                    # List all worktrees
-gwt-switch <name>           # Switch to worktree
-gwt-remove <name>           # Remove worktree (with confirmation)
-gwt-remove -f <name>        # Force remove
+gwt-switch <branch>         # Switch to worktree by branch name
+gwt-remove <branch>         # Remove worktree (with confirmation)
+gwt-remove -f <branch>      # Force remove
 ```
 
 All commands support `-h` / `--help`.
