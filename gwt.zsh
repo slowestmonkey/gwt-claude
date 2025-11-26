@@ -198,7 +198,8 @@ gwt-switch() {
     return 1
   }
 
-  local wt_path=$(_gwt_find_path "$branch") || return 1
+  local wt_path
+  wt_path=$(_gwt_find_path "$branch") || return 1
   cd "$wt_path"
   echo "Switched to: $wt_path"
   echo "Opening Claude Code..."
@@ -224,7 +225,8 @@ gwt-remove() {
     return 1
   }
 
-  local wt_path=$(_gwt_find_path "$branch") || return 1
+  local wt_path
+  wt_path=$(_gwt_find_path "$branch") || return 1
   local main=$(_gwt_main_repo)
 
   # Safety checks
