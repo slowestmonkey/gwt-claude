@@ -2,6 +2,8 @@
 
 **Run multiple Claude Code CLI sessions on different branches without conflicts.**
 
+> **Note:** This tool is for **zsh** only.
+
 We don't need a "Next-Gen AI IDE" that tries to reinvent everything. Claude Code CLI is already excellent at what it does! The only missing piece is session isolation.
 
 ### The Math
@@ -52,7 +54,8 @@ gwt-create -l <name>        # Create from your CURRENT branch (local)
 gwt-create -b dev <name>    # Create from a specific base branch
 gwt-list                    # Show where your brain is currently split
 gwt-switch <branch>         # Jump to a worktree
-gwt-remove <branch>         # Remove worktree
+gwt-remove <branch>         # Remove worktree and delete branch
+gwt-remove -k <branch>      # Remove worktree but keep branch
 gwt-remove -f <branch>      # Force remove (YOLO mode)
 ```
 
