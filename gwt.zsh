@@ -170,6 +170,23 @@ gwt-create() {
     [[ "$response" =~ ^[Yy]$ ]] && npm install
   }
 
+  # Optional: copy .env files from main repo
+  local main_repo=$(_gwt_main_repo)
+  local env_files=("${(@f)$(find "$main_repo" -name ".env" -type f 2>/dev/null)}")
+  [[ ${#env_files[@]} -gt 0 && -n "${env_files[1]}" ]] && {
+    echo "Found ${#env_files[@]} .env file(s) in main repo. Copy to worktree? [y/N]"
+    read -r response
+    [[ "$response" =~ ^[Yy]$ ]] && {
+      for env_file in "${env_files[@]}"; do
+        local rel_path="${env_file#$main_repo/}"
+        local target_dir="$(dirname "$rel_path")"
+        [[ "$target_dir" != "." ]] && mkdir -p "$target_dir"
+        cp "$env_file" "$rel_path"
+      done
+      echo "Copied ${#env_files[@]} .env file(s)"
+    }
+  }
+
   _gwt_launch_claude $mode
 }
 
