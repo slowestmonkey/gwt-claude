@@ -268,6 +268,13 @@ gwt-remove() {
     return 1
   }
 
+  # Protect main/original branch
+  local default=$(_gwt_default_branch)
+  if [[ "$branch" == "$default" || "$branch" == "main" || "$branch" == "master" ]]; then
+    echo "Error: Cannot remove main/original branch '$branch'" >&2
+    return 1
+  fi
+
   local wt_path
   wt_path=$(_gwt_find_path "$branch") || return 1
   local main=$(_gwt_main_repo)
@@ -313,7 +320,6 @@ gwt-remove() {
 
     # Delete branch unless -k flag or protected branch
     if ! $keep_branch && [[ -n "$branch_to_delete" ]]; then
-      local default=$(_gwt_default_branch)
       if [[ "$branch_to_delete" != "$default" && "$branch_to_delete" != "main" && "$branch_to_delete" != "master" ]]; then
         git branch -D "$branch_to_delete" 2>/dev/null && echo "Deleted local branch: $branch_to_delete"
 
