@@ -323,7 +323,8 @@ gwt-remove() {
       if [[ "$branch_to_delete" != "$default" && "$branch_to_delete" != "main" && "$branch_to_delete" != "master" ]]; then
         git branch -D "$branch_to_delete" 2>/dev/null && echo "Deleted local branch: $branch_to_delete"
 
-        # Check for remote branch and offer to delete
+        # Check for remote branch and offer to delete (prune stale refs first)
+        git fetch --prune origin 2>/dev/null
         if git show-ref --verify --quiet "refs/remotes/origin/$branch_to_delete"; then
           echo "Remote branch 'origin/$branch_to_delete' still exists. Delete it? [y/N]"
           read -r response
