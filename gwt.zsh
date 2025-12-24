@@ -85,6 +85,7 @@ gwt-claude - Git worktree manager for parallel Claude Code sessions
 COMMANDS
   gwt-create [-l|-b <branch>] [-d|-s] <name>   Create worktree + open Claude
   gwt-list                                     List all worktrees
+  gwt-status                                   Show status of all worktrees
   gwt-switch [-d|-s] <branch>                  Switch to worktree + open Claude
   gwt-remove [-f] [-k] <branch>                Remove worktree and branch
 
@@ -217,6 +218,63 @@ gwt-list() {
       else
         echo "  \033[34m$branch\033[0m\n    $path\n"
       fi
+    fi
+  done <<< "$porcelain"
+}
+
+gwt-status() {
+  [[ "$1" == "-h" || "$1" == "--help" ]] && { _gwt_help; return 0; }
+  _gwt_require_repo || return 1
+
+  local cwd=$(pwd)
+  echo "\033[1mWorktree Status:\033[0m\n"
+
+  local porcelain=$(git worktree list --porcelain)
+  local path="" branch=""
+
+  while IFS= read -r line; do
+    if [[ "$line" == worktree* ]]; then
+      path="${line#worktree }"
+      read -r head_line
+      read -r branch_line
+
+      if [[ "$branch_line" == branch* ]]; then
+        branch="${branch_line#branch refs/heads/}"
+      else
+        branch="(detached)"
+      fi
+
+      # Determine status indicators
+      local indicator=""
+      local status_text=""
+
+      # Current worktree marker
+      [[ "$cwd" == "$path"* ]] && indicator="→ "
+
+      # Git status (dirty/clean)
+      local git_status=$(git -C "$path" status --porcelain 2>/dev/null)
+      if [[ -n "$git_status" ]]; then
+        status_text="\033[33m●\033[0m dirty"
+      else
+        status_text="\033[32m●\033[0m clean"
+      fi
+
+      # Check ahead/behind
+      local upstream=$(git -C "$path" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+      if [[ -n "$upstream" ]]; then
+        local ahead=$(git -C "$path" rev-list --count '@{upstream}..HEAD' 2>/dev/null)
+        local behind=$(git -C "$path" rev-list --count 'HEAD..@{upstream}' 2>/dev/null)
+        [[ "$ahead" -gt 0 ]] && status_text="$status_text ↑$ahead"
+        [[ "$behind" -gt 0 ]] && status_text="$status_text ↓$behind"
+      fi
+
+      # Print entry
+      if [[ -n "$indicator" ]]; then
+        echo "  \033[32m$indicator$branch\033[0m  $status_text"
+      else
+        echo "  \033[34m$branch\033[0m  $status_text"
+      fi
+      echo "    $path\n"
     fi
   done <<< "$porcelain"
 }
@@ -375,9 +433,14 @@ _gwt-remove() {
     '-k[Keep branch]' '--keep-branch[Keep branch]' '1:branch:_gwt_branches'
 }
 
+_gwt-status() {
+  _arguments '-h[Help]' '--help[Help]'
+}
+
 # Register completions
 [[ -n "$ZSH_VERSION" ]] && (( $+functions[compdef] )) && {
   compdef _gwt-create gwt-create 2>/dev/null
   compdef _gwt-switch gwt-switch 2>/dev/null
   compdef _gwt-remove gwt-remove 2>/dev/null
+  compdef _gwt-status gwt-status 2>/dev/null
 }
