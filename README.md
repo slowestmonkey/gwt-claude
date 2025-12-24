@@ -2,6 +2,8 @@
 
 Run multiple Claude Code sessions on different branches. No conflicts.
 
+> [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's CLI agent that writes and edits code in your terminal.
+
 **zsh only.**
 
 ## 🦑 Why
@@ -36,6 +38,17 @@ Git worktrees let you check out multiple branches in separate folders. This tool
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## 🐙 Why not just git worktrees?
+
+You could use `git worktree` directly, but you'd miss:
+
+- **Auto-launch Claude** — Each worktree opens with its own Claude Code session
+- **Environment sync** — Copies `.env` files from main repo to new worktrees
+- **Dependency prompts** — Asks to run `npm install` when `package.json` exists
+- **Safe mode** — Restrict Claude to read/edit/git tools only (`-s` flag)
+- **Tab completion** — Branch names autocomplete in zsh
+- **Clean removal** — Single command removes worktree + local branch + remote branch
+
 ## 🦩 Install
 
 ```bash
@@ -43,8 +56,6 @@ git clone https://github.com/slowestmonkey/gwt-claude.git ~/.gwt-claude
 echo 'source ~/.gwt-claude/gwt.zsh' >> ~/.zshrc
 source ~/.zshrc
 ```
-
-Needs: zsh, git, [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 
 ## 🦚 Commands
 
@@ -60,3 +71,17 @@ gwt-remove -f <branch>      # Force remove
 ```
 
 All commands: `-h` for help, tab completion supported.
+
+## 🦔 Limitations
+
+- **zsh only** — Bash support not yet available
+- **Requires Claude Code** — Install from [Anthropic](https://docs.anthropic.com/en/docs/claude-code)
+- **Disk space** — Each worktree is a full checkout
+- **macOS/Linux** — No Windows support
+
+## 🦎 Alternatives
+
+| Tool | Approach |
+|------|----------|
+| `git worktree` | Manual worktrees, no Claude integration |
+| tmux/screen | Session-based multitasking, not directory-based |
