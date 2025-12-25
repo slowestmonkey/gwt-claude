@@ -2,32 +2,34 @@
 
 Run multiple Claude Code sessions on different branches. No conflicts.
 
-> [Claude Code](https://code.claude.com/docs) is Anthropic's CLI agent that writes and edits code in your terminal.
-
-**zsh only.**
-
-## 🦑 Why
-
-Claude Code lives in your working directory. Want to build a feature while fixing a bug? You're stuck switching branches, stashing, and confusing everyone.
-
-Git worktrees let you check out multiple branches in separate folders. This tool wraps that and auto-launches Claude Code in each worktree.
-
-## 🦊 Workflow
-
 ![DEMO](https://github.com/slowestmonkey/gwt-claude/blob/db0afca89bfc2b4acb0eb5a7187cc9c4673fa5af/docs/demo.gif?raw=true)
 
-## 🐙 Why not just git worktrees?
+**Before (every time):**
+`cd project && git stash && git checkout fix && claude` — stash conflicts, context lost
 
-You could use `git worktree` directly, but you'd miss:
+**After (once):**
+`gwt-create bugfix-y` — parallel session, isolated
 
-- **Auto-launch Claude** — Each worktree opens with its own Claude Code session
-- **Environment sync** — Copies `.env` files from main repo to new worktrees
-- **Dependency prompts** — Asks to run `npm install` when `package.json` exists
-- **Safe mode** — Restrict Claude to read/edit/git tools only (`-s` flag)
-- **Tab completion** — Branch names autocomplete in zsh
-- **Clean removal** — Single command removes worktree + local branch + remote branch
+## 🐙 Why
 
-## 🦩 Install
+Claude Code is tied to your working directory. Want to build a feature while fixing a bug? You're stuck switching branches and losing context.
+
+`gwt-claude` wraps git worktrees to give each task its own directory + Claude session. You also get:
+
+- Auto-launches Claude in each worktree
+- Copies `.env` from main repo
+- Prompts `npm install` when needed
+- Safe mode (`-s`) for read/edit/git only
+- Tab completion for branch names
+- One command to remove worktree + branches
+
+## 🦊 Requirements
+
+- zsh
+- [Claude Code](https://code.claude.com/docs)
+- macOS or Linux
+
+## 🦚 Install
 
 ```bash
 git clone https://github.com/slowestmonkey/gwt-claude.git ~/.gwt-claude
@@ -35,7 +37,9 @@ echo 'source ~/.gwt-claude/gwt.zsh' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-## 🦚 Commands
+> Each worktree is a full checkout — plan for disk space accordingly.
+
+## 🦩 Commands
 
 ```bash
 gwt-create <name>           # Create worktree + open Claude
@@ -49,17 +53,3 @@ gwt-remove -f <branch>      # Force remove
 ```
 
 All commands: `-h` for help, tab completion supported.
-
-## 🦔 Limitations
-
-- **zsh only** — Bash support not yet available
-- **Requires Claude Code** — Install from [Anthropic](https://code.claude.com/docs/en/setup)
-- **Disk space** — Each worktree is a full checkout
-- **macOS/Linux** — No Windows support
-
-## 🦎 Alternatives
-
-| Tool | Approach |
-|------|----------|
-| `git worktree` | Manual worktrees, no Claude integration |
-| tmux/screen | Session-based multitasking, not directory-based |
