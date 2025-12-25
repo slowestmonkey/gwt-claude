@@ -63,8 +63,7 @@ source ~/.zshrc
 gwt-create <name>           # Create worktree + open Claude
 gwt-create -l <name>        # Create from current branch
 gwt-create -b dev <name>    # Create from specific branch
-gwt-list                    # List worktrees
-gwt-status                  # Show status (dirty/clean, ahead/behind)
+gwt-list                    # List worktrees with status
 gwt-switch <branch>         # Jump to worktree + open Claude
 gwt-remove <branch>         # Remove worktree + delete branch
 gwt-remove -k <branch>      # Remove worktree, keep branch

@@ -78,8 +78,7 @@ gwt-claude - Git worktree manager for parallel Claude Code sessions
 
 COMMANDS
   gwt-create [-l|-b <branch>] [-d|-s] <name>   Create worktree + open Claude
-  gwt-list                                     List all worktrees
-  gwt-status                                   Show status of all worktrees
+  gwt-list                                     List worktrees with status
   gwt-switch [-d|-s] <branch>                  Switch to worktree + open Claude
   gwt-remove [-f] [-k] <branch>                Remove worktree and branch
 
@@ -199,31 +198,7 @@ gwt-list() {
       read -r branch_line
       wt_branch=$([[ "$branch_line" == branch* ]] && echo "${branch_line#branch refs/heads/}" || echo "(detached)")
 
-      if [[ "$cwd" == "$wt_path"* ]]; then
-        echo "  \033[32m→ $wt_branch\033[0m\n    $wt_path\n"
-      else
-        echo "  \033[34m$wt_branch\033[0m\n    $wt_path\n"
-      fi
-    fi
-  done <<< "$(git worktree list --porcelain)"
-}
-
-gwt-status() {
-  [[ "$1" == "-h" || "$1" == "--help" ]] && { _gwt_help; return 0; }
-  _gwt_require_repo || return 1
-
-  local cwd=$(pwd)
-  echo "\033[1mWorktree Status:\033[0m\n"
-
-  local wt_path="" wt_branch="" head_line="" branch_line=""
-  while IFS= read -r line; do
-    if [[ "$line" == worktree* ]]; then
-      wt_path="${line#worktree }"
-      read -r head_line
-      read -r branch_line
-      wt_branch=$([[ "$branch_line" == branch* ]] && echo "${branch_line#branch refs/heads/}" || echo "(detached)")
-
-      # Build status line
+      # Build status
       local indicator="" status_text=""
       [[ "$cwd" == "$wt_path"* ]] && indicator="→ "
 
@@ -389,14 +364,9 @@ _gwt-remove() {
     '-k[Keep branch]' '--keep-branch[Keep branch]' '1:branch:_gwt_branches'
 }
 
-_gwt-status() {
-  _arguments '-h[Help]' '--help[Help]'
-}
-
 # Register completions
 [[ -n "$ZSH_VERSION" ]] && (( $+functions[compdef] )) && {
   compdef _gwt-create gwt-create 2>/dev/null
   compdef _gwt-switch gwt-switch 2>/dev/null
   compdef _gwt-remove gwt-remove 2>/dev/null
-  compdef _gwt-status gwt-status 2>/dev/null
 }
