@@ -2,7 +2,7 @@
 
 Run multiple AI coding sessions on different branches. No conflicts.
 
-![DEMO](https://github.com/slowestmonkey/gwt-claude/blob/db0afca89bfc2b4acb0eb5a7187cc9c4673fa5af/docs/demo.gif?raw=true)
+![DEMO](https://github.com/slowestmonkey/gwt/blob/db0afca89bfc2b4acb0eb5a7187cc9c4673fa5af/docs/demo.gif?raw=true)
 
 **Before:** `git stash && git checkout fix && claude` — conflicts, context lost
 
@@ -20,8 +20,8 @@ AI assistants are tied to your working directory. `gwt` wraps git worktrees to g
 ## 🦊 Install
 
 ```bash
-git clone https://github.com/slowestmonkey/gwt-claude.git ~/.gwt-claude
-echo 'source ~/.gwt-claude/gwt.zsh' >> ~/.zshrc
+git clone https://github.com/slowestmonkey/gwt.git ~/.gwt
+echo 'source ~/.gwt/gwt.zsh' >> ~/.zshrc
 source ~/.zshrc
 ```
 

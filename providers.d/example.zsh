@@ -4,7 +4,7 @@
 #
 # Copy this file and modify to add your own AI coding assistant.
 # Place in:
-#   - ~/.gwt-claude/providers.d/  (bundled with gwt)
+#   - ~/.gwt/providers.d/  (bundled with gwt)
 #   - ~/.config/gwt/providers.d/  (user-specific)
 #
 # Format: GWT_PROVIDERS[name]="command|safe_flags|dangerous_flags|Display Name"

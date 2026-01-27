@@ -1,6 +1,6 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║  gwt - Git Worktree Manager for AI Coding Assistants                      ║
-# ║  https://github.com/slowestmonkey/gwt-claude                              ║
+# ║  https://github.com/slowestmonkey/gwt                                     ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 # Determine script location for loading modules
