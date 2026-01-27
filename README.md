@@ -20,10 +20,16 @@ AI assistants are tied to your working directory. `gwt` wraps git worktrees to g
 ## 🦊 Install
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/slowestmonkey/gwt/main/install.sh | sh
+```
+
+Or manually:
+```bash
 git clone https://github.com/slowestmonkey/gwt.git ~/.gwt
 echo 'source ~/.gwt/gwt.zsh' >> ~/.zshrc
-source ~/.zshrc
 ```
+
+Then restart your shell.
 
 ## 🦩 Commands
 
