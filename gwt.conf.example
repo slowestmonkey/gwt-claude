@@ -1,0 +1,33 @@
+# gwt - Git Worktree Manager Configuration
+# Copy this file to one of:
+#   ./.gwt.conf           (project-specific)
+#   ~/.config/gwt/config  (user global)
+#   ~/.gwt.conf           (user global, legacy)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Provider Selection
+# ─────────────────────────────────────────────────────────────────────────────
+# Set the default AI assistant to launch with worktrees
+# Options: claude, opencode, aider, cursor, or any custom provider
+GWT_PROVIDER=claude
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Custom Providers
+# ─────────────────────────────────────────────────────────────────────────────
+# Add custom providers using the format:
+# GWT_PROVIDERS[name]="command|safe_flags|dangerous_flags|display_name"
+#
+# Example: Add a custom local AI assistant
+# GWT_PROVIDERS[my-ai]="my-ai-cli|--restricted|--no-confirm|My AI Tool"
+#
+# Example: Add Codex CLI
+# GWT_PROVIDERS[codex]="codex|||Codex CLI"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude-specific: Safe Mode Tool Restrictions
+# ─────────────────────────────────────────────────────────────────────────────
+# Tools allowed when running Claude in safe mode (-s flag)
+# GWT_ALLOWED_TOOLS=(
+#   "Read" "Edit" "Write" "Grep" "Glob"
+#   "Bash(git:*)" "Bash(npm:*)" "Bash(ls:*)" "Bash(cat:*)"
+# )

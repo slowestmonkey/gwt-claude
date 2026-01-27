@@ -1,29 +1,245 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
-# ║  gwt-claude - Git Worktree Manager for Claude Code                        ║
-# ║  Worktrees stored in: ~/.claude-worktrees/{repo}/{branch}                 ║
+# ║  gwt - Git Worktree Manager for AI Coding Assistants                      ║
+# ║  Worktrees stored in: ~/.gwt-worktrees/{repo}/{branch}                    ║
+# ║  Supports: Claude Code, Crush (OpenCode), Aider, Cursor, and custom CLIs  ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Config file locations (in order of priority)
+GWT_CONFIG_PATHS=(
+  "./.gwt.conf"
+  "$HOME/.config/gwt/config"
+  "$HOME/.gwt.conf"
+)
+
+# Default provider (can be overridden via config or GWT_PROVIDER env var)
+: ${GWT_PROVIDER:=claude}
+
+# Provider registry: command, safe_flags, dangerous_flags, display_name
+# Format: provider_name=("command" "safe_flags" "dangerous_flags" "display_name")
+typeset -A GWT_PROVIDERS
+GWT_PROVIDERS=(
+  [claude]="claude|--allowedTools|--dangerously-skip-permissions|Claude Code"
+  [opencode]="opencode|||OpenCode"
+  [aider]="aider|||Aider"
+  [cursor]="cursor|||Cursor"
+)
+
+# Claude-specific allowed tools for safe mode
 GWT_ALLOWED_TOOLS=(
   "Read" "Edit" "Write" "Grep" "Glob"
   "Bash(git:*)" "Bash(npm:*)" "Bash(ls:*)" "Bash(cat:*)"
 )
 
+# Load user config if exists
+_gwt_load_config() {
+  local config_file
+  for config_file in "${GWT_CONFIG_PATHS[@]}"; do
+    [[ -f "$config_file" ]] && {
+      source "$config_file"
+      return 0
+    }
+  done
+  return 1
+}
+
+# Check if provider was explicitly configured
+_gwt_provider_configured() {
+  # Check if config file exists and contains GWT_PROVIDER
+  local config_file
+  for config_file in "${GWT_CONFIG_PATHS[@]}"; do
+    [[ -f "$config_file" ]] && grep -q "^GWT_PROVIDER=" "$config_file" 2>/dev/null && return 0
+  done
+  # Check if env var was set before sourcing
+  [[ -n "${GWT_PROVIDER_SET:-}" ]] && return 0
+  return 1
+}
+
+# Interactive provider selection
+_gwt_select_provider() {
+  local available=() provider info cmd name
+  
+  # Build list of available (installed) providers (in preferred order)
+  for provider in claude opencode aider cursor; do
+    info="${GWT_PROVIDERS[$provider]}"
+    cmd="${info%%|*}"
+    name="${info##*|}"
+    command -v "$cmd" &>/dev/null && available+=("$provider:$name")
+  done
+  
+  [[ ${#available[@]} -eq 0 ]] && {
+    echo "Error: No AI coding assistants found. Install one of: claude, crush, opencode, aider, cursor" >&2
+    return 1
+  }
+  
+  # If only one available, use it
+  [[ ${#available[@]} -eq 1 ]] && {
+    GWT_PROVIDER="${available[1]%%:*}"
+    echo "Auto-selected provider: ${available[1]#*:} (only one installed)"
+    return 0
+  }
+  
+  # Interactive selection
+  echo "\033[1mSelect your AI coding assistant:\033[0m\n"
+  local i=1
+  for item in "${available[@]}"; do
+    local p="${item%%:*}"
+    local n="${item#*:}"
+    echo "  $i) $n ($p)"
+    ((i++))
+  done
+  echo ""
+  
+  local choice
+  while true; do
+    echo -n "Enter choice [1-${#available[@]}]: "
+    read -r choice
+    [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#available[@]} )) && break
+    echo "Invalid choice. Try again."
+  done
+  
+  GWT_PROVIDER="${available[$choice]%%:*}"
+  local selected_name="${available[$choice]#*:}"
+  echo ""
+  echo "Selected: $selected_name"
+  
+  # Offer to save
+  echo -n "Save to config (~/.config/gwt/config)? [Y/n]: "
+  read -r save_choice
+  [[ ! "$save_choice" =~ ^[Nn]$ ]] && {
+    mkdir -p "$HOME/.config/gwt"
+    echo "GWT_PROVIDER=$GWT_PROVIDER" > "$HOME/.config/gwt/config"
+    echo "Saved! You won't be asked again."
+  }
+  echo ""
+}
+
+# Initialize: load config, then prompt if needed
+_gwt_load_config 2>/dev/null
+[[ -n "$GWT_PROVIDER" ]] && GWT_PROVIDER_SET=1
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Private Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-_gwt_launch_claude() {
+# Get provider info: returns "command|safe_flags|dangerous_flags|display_name"
+_gwt_get_provider() {
+  local provider="${1:-$GWT_PROVIDER}"
+  echo "${GWT_PROVIDERS[$provider]:-}"
+}
+
+# Check if provider is available (command exists)
+_gwt_provider_available() {
+  local provider="${1:-$GWT_PROVIDER}"
+  local info=$(_gwt_get_provider "$provider")
+  [[ -z "$info" ]] && return 1
+  local cmd="${info%%|*}"
+  command -v "$cmd" &>/dev/null
+}
+
+# List available providers
+_gwt_list_providers() {
+  echo "Available providers:"
+  local provider info cmd name available
+  for provider in ${(k)GWT_PROVIDERS}; do
+    info="${GWT_PROVIDERS[$provider]}"
+    cmd="${info%%|*}"
+    name="${info##*|}"
+    if command -v "$cmd" &>/dev/null; then
+      available="\033[32m✓\033[0m"
+    else
+      available="\033[31m✗\033[0m"
+    fi
+    [[ "$provider" == "$GWT_PROVIDER" ]] && name="$name (active)"
+    echo "  $available $provider - $name ($cmd)"
+  done
+}
+
+# Launch the configured provider
+_gwt_launch_provider() {
   local mode=$1
-  echo "Opening Claude Code..."
+  
+  # Interactive selection if not configured
+  if ! _gwt_provider_configured; then
+    _gwt_select_provider || return 1
+  fi
+  
+  local provider="${GWT_PROVIDER}"
+  local info=$(_gwt_get_provider "$provider")
+  
+  # Check if provider exists in registry
+  if [[ -z "$info" ]]; then
+    echo "Error: Unknown provider '$provider'" >&2
+    echo "Set GWT_PROVIDER or add provider to config. Available:" >&2
+    _gwt_list_providers >&2
+    return 1
+  fi
+  
+  # Parse provider info: command|safe_flags|dangerous_flags|display_name
+  local cmd safe_flags dangerous_flags display_name
+  cmd="${info%%|*}"
+  info="${info#*|}"
+  safe_flags="${info%%|*}"
+  info="${info#*|}"
+  dangerous_flags="${info%%|*}"
+  display_name="${info#*|}"
+  
+  # Check if command exists
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "Error: '$cmd' not found. Install $display_name first." >&2
+    echo ""
+    echo -n "Select a different provider? [Y/n]: "
+    read -r choice
+    [[ "$choice" =~ ^[Nn]$ ]] && return 1
+    _gwt_select_provider || return 1
+    _gwt_launch_provider $mode
+    return $?
+  fi
+  
+  echo "Opening $display_name..."
+  
+  local exit_code=0
   case "$mode" in
-    dangerous) claude --dangerously-skip-permissions ;;
-    safe)      claude --allowedTools "${GWT_ALLOWED_TOOLS[@]}" ;;
-    *)         claude ;;
+    dangerous)
+      if [[ -n "$dangerous_flags" ]]; then
+        $cmd $dangerous_flags || exit_code=$?
+      else
+        echo "Warning: $display_name doesn't support dangerous mode, using default" >&2
+        $cmd || exit_code=$?
+      fi
+      ;;
+    safe)
+      if [[ -n "$safe_flags" ]]; then
+        # Claude-specific: safe mode uses --allowedTools with tool list
+        if [[ "$provider" == "claude" ]]; then
+          $cmd $safe_flags "${GWT_ALLOWED_TOOLS[@]}" || exit_code=$?
+        else
+          $cmd $safe_flags || exit_code=$?
+        fi
+      else
+        echo "Warning: $display_name doesn't support safe mode, using default" >&2
+        $cmd || exit_code=$?
+      fi
+      ;;
+    *)
+      $cmd || exit_code=$?
+      ;;
   esac
+  
+  # Handle failed launch
+  if [[ $exit_code -ne 0 ]]; then
+    echo ""
+    echo "Error: $display_name failed to start (exit code: $exit_code)" >&2
+    echo -n "Select a different provider? [Y/n]: "
+    read -r choice
+    [[ "$choice" =~ ^[Nn]$ ]] && return $exit_code
+    _gwt_select_provider || return 1
+    _gwt_launch_provider $mode
+    return $?
+  fi
 }
 
 _gwt_require_repo() {
@@ -39,7 +255,7 @@ _gwt_default_branch() { git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | 
 _gwt_worktree_path() {
   local branch_name="$1"
   local repo_name=$(basename "$(_gwt_main_repo)")
-  echo "$HOME/.claude-worktrees/${repo_name}/${branch_name//\//-}"
+  echo "$HOME/.gwt-worktrees/${repo_name}/${branch_name//\//-}"
 }
 
 _gwt_find_path() {
@@ -74,13 +290,14 @@ _gwt_is_protected() {
 
 _gwt_help() {
   cat <<'EOF'
-gwt-claude - Git worktree manager for parallel Claude Code sessions
+gwt - Git worktree manager for AI coding assistants
 
 COMMANDS
-  gwt-create [-l|-b <branch>] [-d|-s] <name>   Create worktree + open Claude
+  gwt-create [-l|-b <branch>] [-d|-s] <name>   Create worktree + open AI assistant
   gwt-list                                     List worktrees with status
-  gwt-switch [-d|-s] <branch>                  Switch to worktree + open Claude
+  gwt-switch [-d|-s] <branch>                  Switch to worktree + open AI assistant
   gwt-remove [-f] [-k] <branch>                Remove worktree and branch
+  gwt-providers [name]                         List providers or set active provider
 
 OPTIONS
   -l, --local        Create from current branch (default: main/master)
@@ -89,13 +306,24 @@ OPTIONS
   -k, --keep-branch  Keep the branch when removing worktree
   -h, --help         Show this help
 
-CLAUDE MODES
-  (default)          Normal Claude (prompts for each tool)
-  -s, --safe         Restricted tools: Read, Edit, Write, Grep, Glob, git, npm, ls, cat
-  -d, --dangerous    Skip ALL permission prompts (--dangerously-skip-permissions)
+PERMISSION MODES (provider-dependent)
+  (default)          Normal mode (prompts for each tool)
+  -s, --safe         Restricted tools (Claude: Read, Edit, Write, Grep, Glob, git, npm, ls, cat)
+  -d, --dangerous    Skip ALL permission prompts
+
+SUPPORTED PROVIDERS
+  claude             Claude Code (default)
+  opencode           OpenCode
+  aider              Aider
+  cursor             Cursor
+
+CONFIGURATION
+  First run:         Interactive prompt to select & save provider
+  Set provider:      export GWT_PROVIDER=crush
+  Config files:      ./.gwt.conf, ~/.config/gwt/config, ~/.gwt.conf
 
 STORAGE
-  ~/.claude-worktrees/{repo}/{branch}
+  ~/.gwt-worktrees/{repo}/{branch}
 EOF
 }
 
@@ -142,7 +370,7 @@ gwt-create() {
   if [[ -d "$wt_path" ]]; then
     echo "Worktree exists: $wt_path"
     cd "$wt_path"
-    _gwt_launch_claude $mode
+    _gwt_launch_provider $mode
     return 0
   fi
 
@@ -180,7 +408,7 @@ gwt-create() {
     }
   }
 
-  _gwt_launch_claude $mode
+  _gwt_launch_provider $mode
 }
 
 gwt-list() {
@@ -249,7 +477,7 @@ gwt-switch() {
   wt_path=$(_gwt_find_path "$wt_branch") || return 1
   cd "$wt_path"
   echo "Switched to: $wt_path"
-  _gwt_launch_claude $mode
+  _gwt_launch_provider $mode
 }
 
 gwt-remove() {
@@ -329,6 +557,49 @@ gwt-remove() {
   fi
 }
 
+gwt-providers() {
+  [[ "$1" == "-h" || "$1" == "--help" ]] && { _gwt_help; return 0; }
+  
+  # If provider name given, set it
+  if [[ -n "$1" ]]; then
+    local provider="$1"
+    local info="${GWT_PROVIDERS[$provider]:-}"
+    
+    if [[ -z "$info" ]]; then
+      echo "Error: Unknown provider '$provider'" >&2
+      echo "Available: ${(k)GWT_PROVIDERS}" >&2
+      return 1
+    fi
+    
+    local cmd="${info%%|*}"
+    local name="${info##*|}"
+    
+    if ! command -v "$cmd" &>/dev/null; then
+      echo "Error: '$cmd' not found. Install $name first." >&2
+      return 1
+    fi
+    
+    # Save to config
+    mkdir -p "$HOME/.config/gwt"
+    echo "GWT_PROVIDER=$provider" > "$HOME/.config/gwt/config"
+    export GWT_PROVIDER="$provider"
+    echo "Provider set to: $name ($provider)"
+    return 0
+  fi
+  
+  # No argument - show interactive selection
+  echo "\033[1mGWT Provider Configuration\033[0m\n"
+  echo "Current provider: \033[32m$GWT_PROVIDER\033[0m\n"
+  _gwt_list_providers
+  echo ""
+  
+  echo -n "Select new provider? [y/N]: "
+  read -r choice
+  [[ "$choice" =~ ^[Yy]$ ]] && {
+    _gwt_select_provider
+  }
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Zsh Completions
 # ─────────────────────────────────────────────────────────────────────────────
@@ -364,9 +635,15 @@ _gwt-remove() {
     '-k[Keep branch]' '--keep-branch[Keep branch]' '1:branch:_gwt_branches'
 }
 
+_gwt_provider_names() {
+  local providers=(${(k)GWT_PROVIDERS})
+  _describe 'providers' providers
+}
+
 # Register completions
 [[ -n "$ZSH_VERSION" ]] && (( $+functions[compdef] )) && {
   compdef _gwt-create gwt-create 2>/dev/null
   compdef _gwt-switch gwt-switch 2>/dev/null
   compdef _gwt-remove gwt-remove 2>/dev/null
+  compdef _gwt_provider_names gwt-providers 2>/dev/null
 }
